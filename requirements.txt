@@ -1,0 +1,24 @@
+# Core dependencies
+numpy>=1.24.0
+pandas>=2.0.0
+matplotlib>=3.8.0
+
+# CLI dependencies
+argparse>=1.4.0
+
+# API and Dashboard (optional, but impressive)
+fastapi>=0.110.0
+uvicorn>=0.23.0
+streamlit>=1.34.0
+
+# Publishing tools
+setuptools>=68.0.0
+wheel>=0.43.0
+twine>=5.0.0
+
+# Developer tools (optional but professional)
+pytest>=8.2.0
+flake8>=7.0.0
+mypy>=1.10.0
+black>=24.3.0
+pydantic>=2.7.0  # For API input validation
