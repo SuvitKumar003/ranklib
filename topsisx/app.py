@@ -326,7 +326,6 @@ if st.session_state.data is not None:
                     pipeline = DecisionPipeline(
                         weights=weighting_method.lower(),
                         method=ranking_method.lower(),
-                        verbose=False
                     )
                     
                     # Run analysis
