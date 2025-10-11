@@ -20,38 +20,53 @@ def topsis(data, weights, impacts):
     elif not isinstance(data, pd.DataFrame):
         raise ValueError("Input data must be a DataFrame, list, or NumPy array.")
 
+    # Make a copy to avoid modifying original
+    df = data.copy()
+    
     # Validate weights
     weights = np.array(weights, dtype=float)
+    if len(weights) != df.shape[1]:
+        raise ValueError(f"Number of weights ({len(weights)}) must match number of criteria ({df.shape[1]}).")
     if weights.sum() != 1:
         weights = weights / weights.sum()
 
     # Validate impacts
-    impacts = [1 if i == '+' else -1 for i in impacts]
-    if len(impacts) != data.shape[1]:
-        raise ValueError("Impact list must match number of criteria.")
+    if len(impacts) != df.shape[1]:
+        raise ValueError(f"Number of impacts ({len(impacts)}) must match number of criteria ({df.shape[1]}).")
+    if not all(i in ['+', '-'] for i in impacts):
+        raise ValueError("Impacts must be '+' or '-' only.")
 
-    # Step 1: Normalize data
-    norm_data = data / np.sqrt((data ** 2).sum())
+    # Convert to numpy for calculations
+    matrix = df.values.astype(float)
+    
+    # Step 1: Normalize data (vector normalization)
+    norm_matrix = matrix / np.sqrt((matrix ** 2).sum(axis=0))
 
     # Step 2: Apply weights
-    weighted_data = norm_data * weights
+    weighted_matrix = norm_matrix * weights
 
-    # Step 3: Determine ideal & anti-ideal
-    ideal_best = weighted_data.max() * impacts
-    ideal_worst = weighted_data.min() * impacts
+    # Step 3: Determine ideal best and ideal worst
+    ideal_best = np.zeros(df.shape[1])
+    ideal_worst = np.zeros(df.shape[1])
+    
+    for i in range(df.shape[1]):
+        if impacts[i] == '+':
+            ideal_best[i] = weighted_matrix[:, i].max()
+            ideal_worst[i] = weighted_matrix[:, i].min()
+        else:
+            ideal_best[i] = weighted_matrix[:, i].min()
+            ideal_worst[i] = weighted_matrix[:, i].max()
 
-    # Step 4: Calculate distances
-    dist_best = np.sqrt(((weighted_data - ideal_best) ** 2).sum(axis=1))
-    dist_worst = np.sqrt(((weighted_data - ideal_worst) ** 2).sum(axis=1))
+    # Step 4: Calculate Euclidean distances
+    dist_best = np.sqrt(((weighted_matrix - ideal_best) ** 2).sum(axis=1))
+    dist_worst = np.sqrt(((weighted_matrix - ideal_worst) ** 2).sum(axis=1))
 
     # Step 5: Calculate similarity scores
-    scores = dist_worst / (dist_best + dist_worst)
+    scores = dist_worst / (dist_best + dist_worst + 1e-10)  # Add small value to avoid division by zero
 
-    # Step 6: Rank alternatives
-    ranks = scores.rank(ascending=False).astype(int)
+    # Step 6: Create result dataframe
+    result = df.copy()
+    result['Topsis_Score'] = scores
+    result['Rank'] = scores.rank(ascending=False, method='min').astype(int)
 
-    result = data.copy()
-    result['Topsis Score'] = scores
-    result['Rank'] = ranks
-
-    return result.sort_values(by='Rank')
+    return result.sort_values(by='Rank').reset_index(drop=True)
