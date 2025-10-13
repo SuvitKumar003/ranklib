@@ -67,6 +67,9 @@ def topsis(data, weights, impacts):
     # Step 6: Create result dataframe
     result = df.copy()
     result['Topsis_Score'] = scores
-    result['Rank'] = scores.rank(ascending=False, method='min').astype(int)
+    
+    # FIXED: Convert scores to pandas Series before using .rank()
+    scores_series = pd.Series(scores)
+    result['Rank'] = scores_series.rank(ascending=False, method='min').astype(int)
 
     return result.sort_values(by='Rank').reset_index(drop=True)

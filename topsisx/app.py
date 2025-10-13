@@ -1,7 +1,7 @@
 """
 TOPSISX Web Interface
 Launch with: streamlit run app.py
-Or after pip install: topsisx-app
+Or after pip install: topsisx --web
 """
 
 import streamlit as st
@@ -216,7 +216,7 @@ with st.sidebar:
         - **AHP**: Pairwise comparison for weights
         - **Entropy**: Objective weight calculation
         
-        **Version**: 0.1.3  
+        **Version**: 0.1.4  
         **Author**: Suvit Kumar
         """)
 
@@ -263,6 +263,9 @@ if st.session_state.data is not None:
         st.error("⚠️ Need at least 2 numeric criteria columns for analysis!")
     else:
         st.success(f"✅ Found {len(numeric_cols)} numeric criteria: {', '.join(numeric_cols)}")
+        
+        if non_numeric_cols:
+            st.info(f"📌 Non-numeric columns (will be preserved): {', '.join(non_numeric_cols)}")
         
         # Impact selection
         st.subheader("3️⃣ Define Impacts")
@@ -322,26 +325,34 @@ if st.session_state.data is not None:
         if st.button("🚀 Run Analysis", type="primary", use_container_width=True):
             with st.spinner("🔄 Processing..."):
                 try:
+                    # Extract only numeric columns for analysis
+                    numeric_data = df[numeric_cols].copy()
+                    
                     # Create pipeline
                     pipeline = DecisionPipeline(
                         weights=weighting_method.lower(),
                         method=ranking_method.lower(),
+                        verbose=False
                     )
                     
-                    # Run analysis
+                    # Run analysis on ONLY numeric columns
                     if ranking_method == "VIKOR":
                         result = pipeline.run(
-                            df,
+                            numeric_data,
                             impacts=impacts,
                             pairwise_matrix=pairwise_matrix,
                             v=v_param
                         )
                     else:
                         result = pipeline.run(
-                            df,
+                            numeric_data,
                             impacts=impacts,
                             pairwise_matrix=pairwise_matrix
                         )
+                    
+                    # Add back non-numeric columns (IDs, names, etc.) to result
+                    for col in non_numeric_cols:
+                        result.insert(0, col, df[col].values)
                     
                     st.session_state.results = result
                     st.success("✅ Analysis completed successfully!")
@@ -357,17 +368,59 @@ if st.session_state.results is not None:
     st.markdown("---")
     st.header("🏆 Results")
     
+    # Success banner with PDF info
+    st.success("✅ **Analysis Complete!** Your results are ready for download below.")
+    
+    # Prominent PDF download banner
+    st.info("📄 **Professional PDF Report Available** - Click the button below to download a comprehensive report with charts and analysis.")
+    
     # Results table
     st.subheader("📊 Ranking Table")
     st.dataframe(result, use_container_width=True)
     
-    # Download button
-    st.download_button(
-        label="📥 Download Results (CSV)",
-        data=result.to_csv(index=False),
-        file_name=f"topsisx_results_{ranking_method.lower()}.csv",
-        mime="text/csv"
-    )
+    # Download buttons
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.download_button(
+            label="📥 Download Results (CSV)",
+            data=result.to_csv(index=False),
+            file_name=f"topsisx_results_{ranking_method.lower()}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+    
+    with col2:
+        # Generate PDF report
+        try:
+            from topsisx.reports import generate_report
+            import os
+            
+            # Generate PDF
+            pdf_filename = f"topsisx_report_{ranking_method.lower()}.pdf"
+            generate_report(result, method=ranking_method, filename=pdf_filename)
+            
+            # Read PDF file
+            with open(pdf_filename, "rb") as pdf_file:
+                pdf_data = pdf_file.read()
+            
+            st.download_button(
+                label="📄 Download PDF Report",
+                data=pdf_data,
+                file_name=pdf_filename,
+                mime="application/pdf",
+                use_container_width=True
+            )
+            
+            # Clean up temporary file
+            if os.path.exists(pdf_filename):
+                os.remove(pdf_filename)
+                
+            # Show success banner
+            st.success("✅ PDF Report Generated Successfully! Click button above to download.")
+            
+        except Exception as e:
+            st.warning(f"⚠️ PDF generation failed: {e}")
     
     # Visualization
     st.subheader("📈 Visualization")
@@ -446,7 +499,7 @@ else:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 2rem;'>
-    <p>Made with ❤️ using <b>TOPSISX</b> | Version 0.1.3</p>
+    <p>Made with ❤️ using <b>TOPSISX</b> | Version 0.1.4</p>
     <p>For support: <a href='https://github.com/SuvitKumar003/ranklib'>GitHub</a></p>
 </div>
 """, unsafe_allow_html=True)
