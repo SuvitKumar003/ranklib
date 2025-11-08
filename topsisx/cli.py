@@ -238,7 +238,7 @@ def main():
     parser.add_argument(
         "--version",
         action="version",
-        version="TOPSISX 0.1.3"
+        version="TOPSISX 0.2.2"
     )
     
     args = parser.parse_args()

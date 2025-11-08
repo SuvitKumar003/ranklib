@@ -1496,27 +1496,6 @@ Special thanks to:
 
 ---
 
-## 🎉 What's New
-
-### Version 0.1.4 (Latest)
-- ✨ Enhanced web interface with PDF reports
-- 🐛 Fixed verbose parameter in DecisionPipeline
-- 🔧 Improved error handling for non-numeric data
-- 📄 Better PDF report generation
-- 🎨 Improved visualizations
-
-### Version 0.1.3
-- ✨ Added web interface
-- 📊 VIKOR method support
-- 🔧 Better error messages
-
-### Version 0.1.0
-- 🎉 Initial release
-- ✅ TOPSIS implementation
-- ✅ AHP weighting
-- ✅ Entropy weighting
-
----
 
 ## 🚀 Roadmap
 

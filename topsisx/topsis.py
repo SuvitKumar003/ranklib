@@ -11,7 +11,7 @@ def topsis(data, weights, impacts):
     - impacts: List of '+' (benefit) or '-' (cost) for each criterion.
 
     Returns:
-    - DataFrame with scores and ranks.
+    - DataFrame with scores and ranks (in ORIGINAL row order).
     """
 
     # Convert to DataFrame if needed
@@ -68,8 +68,9 @@ def topsis(data, weights, impacts):
     result = df.copy()
     result['Topsis_Score'] = scores
     
-    # FIXED: Convert scores to pandas Series before using .rank()
+    # Convert scores to pandas Series before using .rank()
     scores_series = pd.Series(scores)
     result['Rank'] = scores_series.rank(ascending=False, method='min').astype(int)
 
-    return result.sort_values(by='Rank').reset_index(drop=True)
+    # FIXED: Return in ORIGINAL order instead of sorting by rank
+    return result

@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="topsisx",
-    version="0.2.1",
+    version="0.2.2",
     author="Suvit Kumar",
     author_email="suvitkumar03@gmail.com",
     description="A Python library for Multi-Criteria Decision Making (TOPSIS, AHP, VIKOR, Entropy) with Web Interface",
