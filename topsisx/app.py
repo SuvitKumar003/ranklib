@@ -7,8 +7,6 @@ Or after pip install: topsisx --web
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import io
 import base64
 from topsisx.pipeline import DecisionPipeline
 from topsisx.topsis import topsis
@@ -96,38 +94,7 @@ def create_sample_data():
     }
     return samples
 
-def plot_results(result_df, method_name):
-    """Create visualization of results"""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Determine score column
-    score_col = None
-    if 'Topsis_Score' in result_df.columns:
-        score_col = 'Topsis_Score'
-    elif 'Q' in result_df.columns:
-        score_col = 'Q'
-    
-    if score_col:
-        # Bar chart of scores
-        colors = plt.cm.RdYlGn(np.linspace(0.3, 0.9, len(result_df)))
-        ax1.barh(range(len(result_df)), result_df[score_col], color=colors)
-        ax1.set_yticks(range(len(result_df)))
-        ax1.set_yticklabels([f"Alt {i+1}" for i in range(len(result_df))])
-        ax1.set_xlabel('Score', fontsize=12)
-        ax1.set_title(f'{method_name} Scores', fontsize=14, fontweight='bold')
-        ax1.grid(axis='x', alpha=0.3)
-        ax1.invert_yaxis()
-    
-    # Rank distribution
-    rank_counts = result_df['Rank'].value_counts().sort_index()
-    ax2.bar(rank_counts.index, rank_counts.values, color='skyblue', edgecolor='navy')
-    ax2.set_xlabel('Rank', fontsize=12)
-    ax2.set_ylabel('Count', fontsize=12)
-    ax2.set_title('Rank Distribution', fontsize=14, fontweight='bold')
-    ax2.grid(axis='y', alpha=0.3)
-    
-    plt.tight_layout()
-    return fig
+
 
 def get_download_link(df, filename, file_label):
     """Generate download link for dataframe"""
@@ -183,7 +150,7 @@ with st.sidebar:
     
     weighting_method = st.selectbox(
         "Weighting Method:",
-        ["Entropy", "Equal", "AHP"],
+        ["Entropy", "Equal", "Manual", "AHP"],
         help="How to calculate criteria importance"
     )
     
@@ -215,8 +182,9 @@ with st.sidebar:
         - **VIKOR**: Finds compromise solutions
         - **AHP**: Pairwise comparison for weights
         - **Entropy**: Objective weight calculation
+        - **Manual**: Set custom weights for each criterion
         
-        **Version**: 0.1.4  
+        **Version**: 0.2.0  
         **Author**: Suvit Kumar
         """)
 
@@ -283,6 +251,38 @@ if st.session_state.data is not None:
                 )
                 impacts.append(impact)
         
+        # Manual weights input
+        manual_weights = None
+        if weighting_method == "Manual":
+            st.subheader("4️⃣ Enter Manual Weights")
+            st.info("💡 Weights will be automatically normalized to sum to 1.0")
+            
+            weight_cols = st.columns(min(4, len(numeric_cols)))
+            manual_weights = []
+            
+            for i, col_name in enumerate(numeric_cols):
+                with weight_cols[i % len(weight_cols)]:
+                    weight = st.number_input(
+                        f"{col_name}",
+                        min_value=0.0,
+                        max_value=10.0,
+                        value=1.0,
+                        step=0.1,
+                        key=f"weight_{i}",
+                        help=f"Weight for {col_name} (higher = more important)"
+                    )
+                    manual_weights.append(weight)
+            
+            # Show normalized weights
+            total_weight = sum(manual_weights)
+            normalized_weights = [w/total_weight for w in manual_weights]
+            
+            st.markdown("**Normalized Weights:**")
+            weight_display_cols = st.columns(len(numeric_cols))
+            for i, (col_name, norm_weight) in enumerate(zip(numeric_cols, normalized_weights)):
+                with weight_display_cols[i]:
+                    st.metric(col_name, f"{norm_weight:.3f}", f"{norm_weight*100:.1f}%")
+        
         # AHP matrix input if needed
         pairwise_matrix = None
         if weighting_method == "AHP":
@@ -328,27 +328,38 @@ if st.session_state.data is not None:
                     # Extract only numeric columns for analysis
                     numeric_data = df[numeric_cols].copy()
                     
-                    # Create pipeline
-                    pipeline = DecisionPipeline(
-                        weights=weighting_method.lower(),
-                        method=ranking_method.lower(),
-                        verbose=False
-                    )
-                    
-                    # Run analysis on ONLY numeric columns
-                    if ranking_method == "VIKOR":
-                        result = pipeline.run(
-                            numeric_data,
-                            impacts=impacts,
-                            pairwise_matrix=pairwise_matrix,
-                            v=v_param
-                        )
+                    # Handle manual weights
+                    if weighting_method == "Manual" and manual_weights:
+                        # Normalize weights
+                        total = sum(manual_weights)
+                        weights = np.array([w/total for w in manual_weights])
+                        
+                        # Run method directly with manual weights
+                        if ranking_method == "TOPSIS":
+                            result = topsis(numeric_data, weights, impacts)
+                        else:  # VIKOR
+                            result = vikor(numeric_data, weights, impacts, v=v_param)
                     else:
-                        result = pipeline.run(
-                            numeric_data,
-                            impacts=impacts,
-                            pairwise_matrix=pairwise_matrix
+                        # Use pipeline for other weighting methods
+                        pipeline = DecisionPipeline(
+                            weights=weighting_method.lower(),
+                            method=ranking_method.lower()
                         )
+                        
+                        # Run analysis on ONLY numeric columns
+                        if ranking_method == "VIKOR":
+                            result = pipeline.run(
+                                numeric_data,
+                                impacts=impacts,
+                                pairwise_matrix=pairwise_matrix,
+                                v=v_param
+                            )
+                        else:
+                            result = pipeline.run(
+                                numeric_data,
+                                impacts=impacts,
+                                pairwise_matrix=pairwise_matrix
+                            )
                     
                     # Add back non-numeric columns (IDs, names, etc.) to result
                     for col in non_numeric_cols:
@@ -422,14 +433,6 @@ if st.session_state.results is not None:
         except Exception as e:
             st.warning(f"⚠️ PDF generation failed: {e}")
     
-    # Visualization
-    st.subheader("📈 Visualization")
-    try:
-        fig = plot_results(result, ranking_method)
-        st.pyplot(fig)
-    except Exception as e:
-        st.warning(f"Could not generate visualization: {e}")
-    
     # Top alternatives
     st.subheader("🥇 Top 3 Alternatives")
     top_3 = result.head(3)
@@ -499,7 +502,7 @@ else:
 st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 2rem;'>
-    <p>Made with ❤️ using <b>TOPSISX</b> | Version 0.1.4</p>
+    <p>Made with ❤️ using <b>TOPSISX</b> | Version 0.2.0</p>
     <p>For support: <a href='https://github.com/SuvitKumar003/ranklib'>GitHub</a></p>
 </div>
 """, unsafe_allow_html=True)
